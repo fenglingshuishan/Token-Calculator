@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt 优化工作站</title>
+  <link rel="stylesheet" href="css/style.css?v=8">
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header class="header">
+  <div class="header-brand">
+    <span class="brand-icon">⚡</span>
+    <span class="brand-text">Prompt 优化工作站</span>
+  </div>
+  <div class="header-right">
+    <label class="model-label" for="global-model-selector">模型</label>
+    <select id="global-model-selector"></select>
+  </div>
+</header>
+
+<!-- ============================================================
+     MAIN: Two-column layout — Input/Output (left) + Dashboard (right)
+     ============================================================ -->
+<main class="main">
+
+  <!-- ============================================================
+       LEFT COLUMN: Input → Controls → Output
+       ============================================================ -->
+  <div class="left-col">
+
+    <!-- 1) INPUT TEXTAREA -->
+    <div class="panel panel-input">
+      <div class="panel-header">
+        <span class="panel-icon">📝</span>
+        <span>原始输入</span>
+        <span class="panel-stats" id="input-stats">0 字符 · ~0 tokens</span>
+      </div>
+      <textarea
+        id="input-textarea"
+        placeholder="在此粘贴 Prompt 文本..."
+        autofocus
+      ></textarea>
+    </div>
+
+    <!-- 2) CONTROLS (compact bar) -->
+    <div class="controls-bar">
+      <div class="controls-left">
+        <label class="ctrl-item">
+          <span class="ctrl-label">策略</span>
+          <select id="compression-strategy">
+            <option value="rule">规则引擎</option>
+            <option value="llm">LLM 智能</option>
+          </select>
+        </label>
+        <label class="ctrl-item">
+          <span class="ctrl-label">强度</span>
+          <select id="compression-level">
+            <option value="light">轻度</option>
+            <option value="medium" selected>中度</option>
+            <option value="aggressive">重度</option>
+          </select>
+        </label>
+      </div>
+      <div class="controls-right">
+        <button id="btn-compress" class="btn-primary">
+          <span>🪄</span> 一键压缩
+        </button>
+      </div>
+    </div>
+
+    <!-- LLM Config (hidden by default) -->
+    <div id="llm-config" class="llm-config-bar">
+      <label class="ctrl-item">
+        <span class="ctrl-label">LLM 模型</span>
+        <select id="llm-model">
+          <option value="gpt-4o-mini">GPT-4o-mini</option>
+          <option value="gpt-4o">GPT-4o</option>
+          <option value="deepseek-chat">DeepSeek V3</option>
+        </select>
+      </label>
+      <label class="ctrl-item">
+        <span class="ctrl-label">提供商</span>
+        <select id="llm-provider">
+          <option value="openai">OpenAI</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="custom">自定义</option>
+        </select>
+      </label>
+      <label class="ctrl-item">
+        <span class="ctrl-label">API Key</span>
+        <input type="password" id="llm-apikey" placeholder="sk-..." style="width:160px;">
+      </label>
+      <label class="ctrl-item" id="llm-apibase-group" style="display:none;">
+        <span class="ctrl-label">API Base URL</span>
+        <input type="text" id="llm-apibase" placeholder="https://api.openai.com/v1" style="width:200px;">
+      </label>
+      <div class="config-error" id="llm-api-error" style="display:none;"></div>
+    </div>
+
+    <!-- 3) OUTPUT TEXTAREA -->
+    <div class="panel panel-output">
+      <div class="panel-header">
+        <span class="panel-icon">✅</span>
+        <span>压缩结果</span>
+        <span class="panel-stats" id="output-stats"></span>
+        <button id="btn-copy-output" class="btn-mini" disabled>📋 复制</button>
+        <button id="btn-undo" class="btn-mini" disabled>↩ 撤销</button>
+      </div>
+      <textarea
+        id="output-textarea"
+        placeholder="压缩后的文本将显示在这里..."
+        readonly
+      ></textarea>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       RIGHT COLUMN: Dashboard (collapsible cards)
+       ============================================================ -->
+  <div class="right-col" id="dashboard">
+
+    <!-- PLACEHOLDER (shown before first compress) -->
+    <div id="dash-placeholder" class="dash-placeholder">
+      <div class="placeholder-icon">⚡</div>
+      <div>输入文本并点击「一键压缩」</div>
+      <div class="placeholder-sub">压缩效果将实时显示在此仪表盘</div>
+    </div>
+
+    <!-- CARD 1: Core Metrics — ALWAYS VISIBLE when data exists -->
+    <div class="dash-card" id="card-metrics" style="display:none;">
+      <div class="dash-card-header">
+        <span>📊</span>
+        <span>核心指标</span>
+        <span class="dash-badge" id="metrics-badge">--</span>
+      </div>
+      <div class="dash-card-body">
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <div class="metric-label">原始 Token</div>
+            <div class="metric-value warn" id="metric-orig">--</div>
+          </div>
+          <div class="metric-arrow">→</div>
+          <div class="metric-item">
+            <div class="metric-label">压缩后</div>
+            <div class="metric-value ok" id="metric-comp">--</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-label">节省</div>
+            <div class="metric-value ok" id="metric-saved-pct">--</div>
+          </div>
+        </div>
+        <div class="savings-bar-wrap">
+          <div class="savings-bar-track">
+            <div class="savings-bar-fill" id="savings-bar-fill"></div>
+          </div>
+        </div>
+        <div class="metrics-meta" id="metrics-meta">
+          <span id="meta-tokens-saved">--</span>
+          <span class="sep-dot">·</span>
+          <span id="meta-monthly">月省 --</span>
+          <span class="sep-dot">·</span>
+          <span id="meta-yearly">年省 --</span>
+          <span class="sep-dot">·</span>
+          <span id="meta-time">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 2: Multi-Model Comparison — ALWAYS VISIBLE -->
+    <div class="dash-card" id="card-model-compare" style="display:none;">
+      <div class="dash-card-header">
+        <span>🔬</span>
+        <span>多模型对比</span>
+        <span class="dash-badge" id="model-compare-badge">8 个模型</span>
+      </div>
+      <div class="dash-card-body">
+        <div class="table-wrap">
+          <table class="model-table">
+            <thead>
+              <tr><th>模型</th><th class="r">压缩前</th><th class="r">压缩后</th><th class="r">节省</th><th class="r">节省$</th></tr>
+            </thead>
+            <tbody id="model-compare-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 3: Cost Simulator — COLLAPSIBLE to one row -->
+    <details class="dash-card collapsible" id="card-cost" style="display:none;">
+      <summary class="dash-card-header">
+        <span class="toggle-arrow">▶</span>
+        <span>💰</span>
+        <span>成本模拟器</span>
+        <span class="summary-inline" id="cost-summary-inline"></span>
+      </summary>
+      <div class="dash-card-body">
+        <div class="cost-input-row">
+          <label for="cost-calls">月调用量</label>
+          <input type="number" id="cost-calls" value="10000" min="100" step="1000">
+          <label for="cost-model">对比模型</label>
+          <select id="cost-model">
+            <option value="GPT-4o">GPT-4o</option>
+            <option value="GPT-4o-mini">GPT-4o-mini</option>
+            <option value="DeepSeek V4 Flash" selected>DeepSeek V4 Flash</option>
+            <option value="Qwen 3.7 Plus">Qwen 3.7 Plus</option>
+          </select>
+        </div>
+        <div class="cost-bars">
+          <div class="cost-bar-row">
+            <span class="cost-label">压缩前</span>
+            <div class="cost-track"><div class="cost-fill before" id="cost-bar-before"></div></div>
+            <span class="cost-amount" id="cost-amt-before">$0</span>
+          </div>
+          <div class="cost-bar-row">
+            <span class="cost-label">压缩后</span>
+            <div class="cost-track"><div class="cost-fill after" id="cost-bar-after"></div></div>
+            <span class="cost-amount" id="cost-amt-after">$0</span>
+          </div>
+        </div>
+        <div class="cost-annual-save" id="cost-annual-save">年省: $0</div>
+      </div>
+    </details>
+
+    <!-- CARD 4: Changes Log — COLLAPSIBLE to one row -->
+    <details class="dash-card collapsible" id="card-changes" style="display:none;">
+      <summary class="dash-card-header">
+        <span class="toggle-arrow">▶</span>
+        <span>📋</span>
+        <span>变更记录</span>
+        <span class="summary-inline" id="changes-summary-inline"></span>
+      </summary>
+      <div class="dash-card-body">
+        <div id="changes-list"></div>
+      </div>
+    </details>
+
+  </div>
+
+</main>
+
+<!-- ============================================================
+     STATUS BAR
+     ============================================================ -->
+<footer class="status-bar">
+  <div class="status-left">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">已就绪</span>
+  </div>
+  <div class="status-right">
+    <span id="status-model">--</span>
+    <span class="sep">|</span>
+    <span id="status-savings">--</span>
+    <span class="sep">|</span>
+    <span id="status-time">--</span>
+  </div>
+</footer>
+
+<script>
+window.__TC_CONFIG__ = {
+  API_BASE: "/api",
+  DEFAULT_MODEL: "o200k_base",
+  STORAGE_PREFIX: "tc_",
+};
+</script>
+<script src="js/app.js?v=8"></script>
+</body>
+</html>
