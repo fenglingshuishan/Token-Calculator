@@ -16,8 +16,9 @@ class CostSimulator:
         self._registry = pricing_registry
 
     def simulate(self, *, monthly_calls=10000, avg_input_tokens=520,
-                 avg_output_tokens=200, cache_hit_rate=0.30,
-                 compression_ratio=0.65, model_ids=None):
+                 compressed_input_tokens=None, avg_output_tokens=200,
+                 cache_hit_rate=0.30, compression_ratio=0.65,
+                 compression_cost_usd=0.0, model_ids=None):
         """Run cost simulation across specified models.
 
         Returns dict with comparisons list, best_value_model, monthly_calls.
@@ -34,7 +35,8 @@ class CostSimulator:
             comp = self._compare_model(
                 model_id, pricing, monthly_calls,
                 avg_input_tokens, avg_output_tokens,
-                cache_hit_rate, compression_ratio
+                cache_hit_rate, compression_ratio, compressed_input_tokens,
+                compression_cost_usd
             )
             if comp is not None:
                 comparisons.append(comp)
@@ -49,7 +51,9 @@ class CostSimulator:
             "monthly_calls": monthly_calls,
         }
 
-    def _compare_model(self, model_id, pricing, calls, in_tok, out_tok, cache_rate, comp_ratio):
+    def _compare_model(self, model_id, pricing, calls, in_tok, out_tok,
+                       cache_rate, comp_ratio, compressed_input_tokens=None,
+                       compression_cost=0.0):
         input_price = pricing.get("input")
         output_price = pricing.get("output")
         if input_price is None or output_price is None:
@@ -73,18 +77,27 @@ class CostSimulator:
             }
 
         before = calc(in_tok, out_tok)
-        compressed_in = max(1, int(in_tok * comp_ratio))
+        compressed_in = (compressed_input_tokens if compressed_input_tokens is not None
+                         else max(0, int(in_tok * comp_ratio)))
         after = calc(compressed_in, out_tok)
 
-        monthly_savings = round(before["total"] - after["total"], 2)
+        gross_monthly_savings = before["total"] - after["total"]
+        monthly_savings = round(gross_monthly_savings - compression_cost, 2)
         yearly_savings = round(monthly_savings * 12, 2)
         savings_pct = round((monthly_savings / before["total"] * 100) if before["total"] > 0 else 0.0, 2)
+        per_use_savings = ((in_tok - compressed_in) * input_price / 1_000_000)
+        break_even = None
+        if compression_cost > 0 and per_use_savings > 0:
+            import math
+            break_even = math.ceil(compression_cost / per_use_savings)
 
         return {
             "model_id": model_id,
             "before": before,
             "after": after,
+            "compression_cost": round(compression_cost, 8),
             "monthly_savings": monthly_savings,
             "yearly_savings": yearly_savings,
             "savings_percentage": savings_pct,
+            "break_even_uses": break_even,
         }

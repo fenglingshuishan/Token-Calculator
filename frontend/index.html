@@ -1,272 +1,139 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Prompt 优化工作站</title>
-  <link rel="stylesheet" href="css/style.css?v=8">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Prompt 成本工作台 · 归档版</title>
+  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/layout.css?v=1">
 </head>
 <body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="返回工作台">
+      <span class="brand-mark">P</span>
+      <span><strong>Prompt 成本工作台</strong><small>归档参考实现</small></span>
+    </a>
+    <div class="server-state" id="server-state"><i></i><span>正在连接本地服务</span></div>
+    <button class="ghost" id="tokenizer-button">分词器</button>
+    <button class="ghost" id="help-button">使用说明</button>
+  </header>
 
-<!-- ============================================================
-     HEADER
-     ============================================================ -->
-<header class="header">
-  <div class="header-brand">
-    <span class="brand-icon">⚡</span>
-    <span class="brand-text">Prompt 优化工作站</span>
-  </div>
-  <div class="header-right">
-    <label class="model-label" for="global-model-selector">模型</label>
-    <select id="global-model-selector"></select>
-  </div>
-</header>
-
-<!-- ============================================================
-     MAIN: Two-column layout — Input/Output (left) + Dashboard (right)
-     ============================================================ -->
-<main class="main">
-
-  <!-- ============================================================
-       LEFT COLUMN: Input → Controls → Output
-       ============================================================ -->
-  <div class="left-col">
-
-    <!-- 1) INPUT TEXTAREA -->
-    <div class="panel panel-input">
-      <div class="panel-header">
-        <span class="panel-icon">📝</span>
-        <span>原始输入</span>
-        <span class="panel-stats" id="input-stats">0 字符 · ~0 tokens</span>
+  <div class="page">
+    <section class="intro">
+      <div>
+        <span class="eyebrow">PROMPT ECONOMICS · ARCHIVED</span>
+        <h1>用于自建 API 管线的成本实验。</h1>
+        <p>本归档版不能查看或优化 Codex 等托管 Agent 的完整上下文；结果不构成语义等价或实际省钱证明。</p>
       </div>
-      <textarea
-        id="input-textarea"
-        placeholder="在此粘贴 Prompt 文本..."
-        autofocus
-      ></textarea>
-    </div>
+      <ol class="steps" aria-label="操作步骤">
+        <li class="active"><b>1</b><span>输入原文<small>粘贴或使用示例</small></span></li>
+        <li><b>2</b><span>配置场景<small>模型与复用次数</small></span></li>
+        <li><b>3</b><span>审核结果<small>语义与成本</small></span></li>
+      </ol>
+    </section>
 
-    <!-- 2) CONTROLS (compact bar) -->
-    <div class="controls-bar">
-      <div class="controls-left">
-        <label class="ctrl-item">
-          <span class="ctrl-label">策略</span>
-          <select id="compression-strategy">
-            <option value="rule">规则引擎</option>
-            <option value="llm">LLM 智能</option>
-          </select>
-        </label>
-        <label class="ctrl-item">
-          <span class="ctrl-label">强度</span>
-          <select id="compression-level">
-            <option value="light">轻度</option>
-            <option value="medium" selected>中度</option>
-            <option value="aggressive">重度</option>
-          </select>
-        </label>
-      </div>
-      <div class="controls-right">
-        <button id="btn-compress" class="btn-primary">
-          <span>🪄</span> 一键压缩
-        </button>
-      </div>
-    </div>
-
-    <!-- LLM Config (hidden by default) -->
-    <div id="llm-config" class="llm-config-bar">
-      <label class="ctrl-item">
-        <span class="ctrl-label">LLM 模型</span>
-        <select id="llm-model">
-          <option value="gpt-4o-mini">GPT-4o-mini</option>
-          <option value="gpt-4o">GPT-4o</option>
-          <option value="deepseek-chat">DeepSeek V3</option>
-        </select>
-      </label>
-      <label class="ctrl-item">
-        <span class="ctrl-label">提供商</span>
-        <select id="llm-provider">
-          <option value="openai">OpenAI</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="custom">自定义</option>
-        </select>
-      </label>
-      <label class="ctrl-item">
-        <span class="ctrl-label">API Key</span>
-        <input type="password" id="llm-apikey" placeholder="sk-..." style="width:160px;">
-      </label>
-      <label class="ctrl-item" id="llm-apibase-group" style="display:none;">
-        <span class="ctrl-label">API Base URL</span>
-        <input type="text" id="llm-apibase" placeholder="https://api.openai.com/v1" style="width:200px;">
-      </label>
-      <div class="config-error" id="llm-api-error" style="display:none;"></div>
-    </div>
-
-    <!-- 3) OUTPUT TEXTAREA -->
-    <div class="panel panel-output">
-      <div class="panel-header">
-        <span class="panel-icon">✅</span>
-        <span>压缩结果</span>
-        <span class="panel-stats" id="output-stats"></span>
-        <button id="btn-copy-output" class="btn-mini" disabled>📋 复制</button>
-        <button id="btn-undo" class="btn-mini" disabled>↩ 撤销</button>
-      </div>
-      <textarea
-        id="output-textarea"
-        placeholder="压缩后的文本将显示在这里..."
-        readonly
-      ></textarea>
-    </div>
-
-  </div>
-
-  <!-- ============================================================
-       RIGHT COLUMN: Dashboard (collapsible cards)
-       ============================================================ -->
-  <div class="right-col" id="dashboard">
-
-    <!-- PLACEHOLDER (shown before first compress) -->
-    <div id="dash-placeholder" class="dash-placeholder">
-      <div class="placeholder-icon">⚡</div>
-      <div>输入文本并点击「一键压缩」</div>
-      <div class="placeholder-sub">压缩效果将实时显示在此仪表盘</div>
-    </div>
-
-    <!-- CARD 1: Core Metrics — ALWAYS VISIBLE when data exists -->
-    <div class="dash-card" id="card-metrics" style="display:none;">
-      <div class="dash-card-header">
-        <span>📊</span>
-        <span>核心指标</span>
-        <span class="dash-badge" id="metrics-badge">--</span>
-      </div>
-      <div class="dash-card-body">
-        <div class="metrics-grid">
-          <div class="metric-item">
-            <div class="metric-label">原始 Token</div>
-            <div class="metric-value warn" id="metric-orig">--</div>
-          </div>
-          <div class="metric-arrow">→</div>
-          <div class="metric-item">
-            <div class="metric-label">压缩后</div>
-            <div class="metric-value ok" id="metric-comp">--</div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-label">节省</div>
-            <div class="metric-value ok" id="metric-saved-pct">--</div>
+    <main class="workspace">
+      <section class="card editor-card">
+        <div class="card-title">
+          <div><span class="step-tag">步骤 1</span><h2>输入要优化的 Prompt</h2></div>
+          <div class="examples">
+            <button data-example="product">产品需求示例</button>
+            <button data-example="code">代码任务示例</button>
           </div>
         </div>
-        <div class="savings-bar-wrap">
-          <div class="savings-bar-track">
-            <div class="savings-bar-fill" id="savings-bar-fill"></div>
+        <div class="text-wrap">
+          <textarea id="source" maxlength="200000" placeholder="例如：请帮我设计一个用户登录模块。要求支持邮箱登录、错误次数限制和审计日志……" autofocus></textarea>
+          <div class="text-meta"><span id="char-count">0 字符</span><span id="token-preview">等待输入</span></div>
+        </div>
+
+        <div class="section-heading"><span class="step-tag">步骤 2</span><h2>说明它将怎样使用</h2></div>
+        <div class="form-grid">
+          <label class="field field-wide"><span>目标模型</span><select id="model"><option>正在加载模型…</option></select><small id="model-note">价格和 tokenizer 会影响结果</small></label>
+          <label class="field"><span>优化方式</span><select id="strategy"><option value="rule">安全本地清理（推荐）</option><option value="llm">LLM 语义压缩</option></select></label>
+          <label class="field"><span>预计复用次数</span><input id="reuse" type="number" min="1" max="100000000" value="1"><small>只用一次就填 1</small></label>
+          <label class="field"><span>缓存命中率</span><div class="input-suffix"><input id="cache-rate" type="number" min="0" max="100" value="0"><em>%</em></div></label>
+          <label class="field"><span>目标模型输入价（可选）</span><div class="input-suffix"><input id="target-input-price" type="number" min="0" step="0.001" placeholder="使用内置价格"><em>$/M</em></div></label>
+        </div>
+
+        <div class="action-row">
+          <p id="action-hint">本地模式不会上传内容，也不会删除列表、代码和不确定性表达。</p>
+          <button class="secondary" id="llm-config-button" hidden>配置 LLM</button>
+          <button class="primary" id="run" disabled><span>开始安全优化</span><kbd>Ctrl ↵</kbd></button>
+        </div>
+      </section>
+
+      <aside class="card result-card" aria-live="polite">
+        <div id="empty-state" class="empty-state">
+          <div class="empty-illustration"><span>✓</span></div>
+          <h2>结果会在这里出现</h2>
+          <p>系统不会只告诉你“缩短了多少”，还会说明计数是否精确、多久回本以及有哪些风险。</p>
+          <ul><li>Token 计数来源</li><li>压缩成本与净收益</li><li>逐项修改记录</li></ul>
+        </div>
+
+        <div id="result" hidden>
+          <div class="result-head">
+            <div><span class="step-tag">步骤 3</span><h2>审核优化结果</h2></div>
+            <button class="ghost mobile-back" id="back-editor">← 返回编辑</button>
+            <span class="trust" id="trust-badge">待验证</span>
           </div>
+          <div id="warnings"></div>
+          <nav class="result-tabs"><button class="active" data-result-tab="prompt">优化结果</button><button data-result-tab="cost">费用结论</button><button data-result-tab="changes">修改记录</button></nav>
+          <section class="result-pane active" data-result-pane="prompt">
+            <div class="metrics">
+              <div><small>原始 Token</small><strong id="original-tokens">—</strong></div>
+              <div><small>优化后 Token</small><strong id="compressed-tokens">—</strong></div>
+              <div class="accent"><small>Token 变化</small><strong id="saved-tokens">—</strong></div>
+            </div>
+            <div class="result-label"><span>优化后的 Prompt</span><span id="method-label"></span></div>
+            <textarea id="output" readonly></textarea>
+            <div class="output-actions"><button id="copy" class="secondary">复制结果</button><button id="download" class="secondary">下载 .txt</button><button id="use-result" class="ghost">继续优化</button></div>
+          </section>
+          <section class="result-pane" data-result-pane="cost">
+            <div class="economics">
+              <div class="section-row"><h3>真实成本结论</h3><span id="profit-state"></span></div>
+              <div class="econ-grid"><div><small>每次毛节省</small><strong id="per-use">—</strong></div><div><small>压缩成本</small><strong id="compression-cost">—</strong></div><div><small>当前净收益</small><strong id="net-saving">—</strong></div><div><small>回本所需复用</small><strong id="break-even">—</strong></div></div>
+              <p id="pricing-source"></p>
+            </div>
+            <div class="review-callout"><strong>只有净收益为正才真正降低费用</strong><span>LLM 压缩需要足够的复用次数来摊薄本次压缩费用。</span></div>
+          </section>
+          <section class="result-pane" data-result-pane="changes">
+            <div class="changes"><h3>逐项修改 <span id="change-count"></span></h3><ol id="change-list"></ol></div>
+            <div class="review-callout"><strong>最后一步由你完成</strong><span>请核对人物、数字、约束和输出格式。系统不以牺牲语义换取压缩率。</span></div>
+          </section>
         </div>
-        <div class="metrics-meta" id="metrics-meta">
-          <span id="meta-tokens-saved">--</span>
-          <span class="sep-dot">·</span>
-          <span id="meta-monthly">月省 --</span>
-          <span class="sep-dot">·</span>
-          <span id="meta-yearly">年省 --</span>
-          <span class="sep-dot">·</span>
-          <span id="meta-time">--</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- CARD 2: Multi-Model Comparison — ALWAYS VISIBLE -->
-    <div class="dash-card" id="card-model-compare" style="display:none;">
-      <div class="dash-card-header">
-        <span>🔬</span>
-        <span>多模型对比</span>
-        <span class="dash-badge" id="model-compare-badge">8 个模型</span>
-      </div>
-      <div class="dash-card-body">
-        <div class="table-wrap">
-          <table class="model-table">
-            <thead>
-              <tr><th>模型</th><th class="r">压缩前</th><th class="r">压缩后</th><th class="r">节省</th><th class="r">节省$</th></tr>
-            </thead>
-            <tbody id="model-compare-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- CARD 3: Cost Simulator — COLLAPSIBLE to one row -->
-    <details class="dash-card collapsible" id="card-cost" style="display:none;">
-      <summary class="dash-card-header">
-        <span class="toggle-arrow">▶</span>
-        <span>💰</span>
-        <span>成本模拟器</span>
-        <span class="summary-inline" id="cost-summary-inline"></span>
-      </summary>
-      <div class="dash-card-body">
-        <div class="cost-input-row">
-          <label for="cost-calls">月调用量</label>
-          <input type="number" id="cost-calls" value="10000" min="100" step="1000">
-          <label for="cost-model">对比模型</label>
-          <select id="cost-model">
-            <option value="GPT-4o">GPT-4o</option>
-            <option value="GPT-4o-mini">GPT-4o-mini</option>
-            <option value="DeepSeek V4 Flash" selected>DeepSeek V4 Flash</option>
-            <option value="Qwen 3.7 Plus">Qwen 3.7 Plus</option>
-          </select>
-        </div>
-        <div class="cost-bars">
-          <div class="cost-bar-row">
-            <span class="cost-label">压缩前</span>
-            <div class="cost-track"><div class="cost-fill before" id="cost-bar-before"></div></div>
-            <span class="cost-amount" id="cost-amt-before">$0</span>
-          </div>
-          <div class="cost-bar-row">
-            <span class="cost-label">压缩后</span>
-            <div class="cost-track"><div class="cost-fill after" id="cost-bar-after"></div></div>
-            <span class="cost-amount" id="cost-amt-after">$0</span>
-          </div>
-        </div>
-        <div class="cost-annual-save" id="cost-annual-save">年省: $0</div>
-      </div>
-    </details>
-
-    <!-- CARD 4: Changes Log — COLLAPSIBLE to one row -->
-    <details class="dash-card collapsible" id="card-changes" style="display:none;">
-      <summary class="dash-card-header">
-        <span class="toggle-arrow">▶</span>
-        <span>📋</span>
-        <span>变更记录</span>
-        <span class="summary-inline" id="changes-summary-inline"></span>
-      </summary>
-      <div class="dash-card-body">
-        <div id="changes-list"></div>
-      </div>
-    </details>
-
+      </aside>
+    </main>
   </div>
 
-</main>
-
-<!-- ============================================================
-     STATUS BAR
-     ============================================================ -->
-<footer class="status-bar">
-  <div class="status-left">
-    <span class="status-dot" id="status-dot"></span>
-    <span id="status-text">已就绪</span>
-  </div>
-  <div class="status-right">
-    <span id="status-model">--</span>
-    <span class="sep">|</span>
-    <span id="status-savings">--</span>
-    <span class="sep">|</span>
-    <span id="status-time">--</span>
-  </div>
-</footer>
-
-<script>
-window.__TC_CONFIG__ = {
-  API_BASE: "/api",
-  DEFAULT_MODEL: "o200k_base",
-  STORAGE_PREFIX: "tc_",
-};
-</script>
-<script src="js/app.js?v=8"></script>
+  <div class="toast" id="toast" role="status"></div>
+  <dialog id="llm-dialog" class="config-dialog">
+    <button class="dialog-close" data-close="llm-dialog" aria-label="关闭">×</button><span class="eyebrow">LLM 设置</span><h2>配置语义压缩</h2>
+    <div class="callout warning"><strong>LLM 压缩会产生额外费用</strong><span>Key 只进入本机内存，不写入文件或浏览器存储。</span></div>
+    <div class="form-grid compact">
+      <label class="field"><span>提供商</span><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="custom">兼容接口</option></select></label>
+      <label class="field"><span>压缩模型 ID</span><input id="llm-model" value="gpt-4o-mini"></label>
+      <label class="field field-wide"><span>API Key</span><input id="api-key" type="password" autocomplete="off" placeholder="仅在内存中使用"></label>
+      <label class="field field-wide custom-only" hidden><span>API 地址</span><input id="api-base" type="url" placeholder="https://example.com/v1/chat/completions"></label>
+      <label class="field"><span>输入价</span><div class="input-suffix"><input id="llm-input-price" type="number" min="0" step="0.001" placeholder="自动"><em>$/M</em></div></label>
+      <label class="field"><span>输出价</span><div class="input-suffix"><input id="llm-output-price" type="number" min="0" step="0.001" placeholder="自动"><em>$/M</em></div></label>
+    </div><button class="primary dialog-save" id="llm-save">保存本次设置</button>
+  </dialog>
+  <dialog id="tokenizer-dialog" class="wide-dialog">
+    <button class="dialog-close" data-close="tokenizer-dialog" aria-label="关闭">×</button><span class="eyebrow">TOKENIZER CENTER</span><h2>分词器状态</h2>
+    <p class="dialog-note">精确分词器首次使用需要下载公开词表。下载完成后会保存在本机缓存中。</p>
+    <div id="tokenizer-list" class="tokenizer-list"><p>正在检查…</p></div>
+    <div class="dialog-actions"><button class="secondary" id="refresh-tokenizers">重新检查</button><button class="primary" id="prepare-tokenizers"><span>准备全部分词器</span></button></div>
+  </dialog>
+  <dialog id="help-dialog">
+    <button class="dialog-close" data-close="help-dialog" aria-label="关闭">×</button>
+    <span class="eyebrow">快速开始</span><h2>三步完成一次可靠优化</h2>
+    <ol class="help-list">
+      <li><b>粘贴 Prompt</b><span>短提示通常无需压缩；系统会如实告诉你。</span></li>
+      <li><b>填写复用次数</b><span>LLM 压缩只有在重复使用时才可能回本。</span></li>
+      <li><b>人工审核</b><span>复制前检查约束、列表、代码和输出格式。</span></li>
+    </ol>
+    <p class="dialog-note">“估算”不是错误，但不能用于账单核对。安装对应 tokenizer 后才会显示“精确”。</p>
+  </dialog>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-"""Prompt Optimization Workstation -- token counting, compression, cost simulation.
+"""Archived Token Calculator -- token counting, compression, cost simulation.
 
 Usage:
     from token_calculator import create_app
@@ -33,4 +33,4 @@ __all__ = [
     "LLMCompressor",
     "CostSimulator",
 ]
-__version__ = "2.0.0"
+__version__ = "3.0.0"

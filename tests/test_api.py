@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Corrected comprehensive API tests for token-calculator project."""
 
+# Legacy live-server smoke script. The automated suite uses TestClient in
+# test_v3.py; keep this file runnable manually without pytest collecting it.
+__test__ = False
+
 import json
 import sys
 import time

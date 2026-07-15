@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 import json
-from token_calculator._compressor_base import CompressorBase
+from token_calculator._compressor_base import CompressorBase, CompressionError
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,9 @@ Rules:
 4. If the original contains multi-step instructions, use numbered lists
 5. Do NOT change the core meaning or remove any required output fields
 6. Output ONLY the compressed prompt, no explanation
+
+Target: reduce the original token count by approximately {target_percent}% when
+safe. Never optimize for length at the expense of meaning.
 
 Original prompt:
 ---
@@ -36,7 +39,8 @@ class LLMCompressor(CompressorBase):
     """LLM-based semantic compression using external API (OpenAI-compatible).
 
     Requires an API key for the LLM provider.
-    Falls back to heuristic compression if no API key is provided or API call fails.
+    Failures are explicit.  A caller must never mistake whitespace cleanup for an
+    LLM result.
     """
 
     def __init__(self):
@@ -56,17 +60,19 @@ class LLMCompressor(CompressorBase):
         api_base = config.get("api_base")
 
         if not api_key:
-            logger.warning("LLM compression requested but no API key provided. Falling back to heuristic.")
-            return self._heuristic_compress(text, "No API key provided")
+            raise CompressionError("缺少 API Key", "llm")
 
         # Determine endpoint
         endpoint = api_base or PROVIDER_ENDPOINTS.get(provider)
         if not endpoint:
             logger.warning(f"Unknown provider '{provider}' and no api_base set. Falling back to heuristic.")
-            return self._heuristic_compress(text, f"Unknown provider: {provider}")
+            raise CompressionError(f"未知提供商: {provider}", "llm")
 
         # Build the compression prompt
-        prompt = COMPRESSION_PROMPT.format(user_prompt=text)
+        prompt = COMPRESSION_PROMPT.format(
+            user_prompt=text,
+            target_percent=max(5, min(95, round(float(target_ratio) * 100))),
+        )
 
         try:
             import httpx
@@ -100,13 +106,14 @@ class LLMCompressor(CompressorBase):
                 # Validate: compressed text should not be empty or identical
                 if not compressed_text or compressed_text == text:
                     logger.info("LLM returned empty or identical text, falling back to heuristic")
-                    return self._heuristic_compress(text, "LLM returned no change")
+                    raise CompressionError("LLM 未返回有效的压缩文本", "llm")
 
                 logger.info(
                     f"LLM compression: {len(text)} chars -> {len(compressed_text)} chars "
                     f"({round((1 - len(compressed_text)/len(text)) * 100, 1)}% reduction)"
                 )
 
+                usage = data.get("usage") or {}
                 return {
                     "compressed_text": compressed_text,
                     "changes": [
@@ -121,6 +128,8 @@ class LLMCompressor(CompressorBase):
                         "original_chars": len(text),
                         "compressed_chars": len(compressed_text),
                         "operations_count": 1,
+                        "llm_input_tokens": int(usage.get("prompt_tokens", 0) or 0),
+                        "llm_output_tokens": int(usage.get("completion_tokens", 0) or 0),
                     }
                 }
 
@@ -137,14 +146,16 @@ class LLMCompressor(CompressorBase):
                 logger.warning(
                     f"LLM API returned {response.status_code}: {error_detail}. Falling back to heuristic."
                 )
-                return self._heuristic_compress(text, f"API {response.status_code}: {error_detail}")
+                raise CompressionError(f"API {response.status_code}: {error_detail}", "llm")
 
         except ImportError:
             logger.warning("httpx not available. Install with: pip install httpx. Falling back to heuristic.")
-            return self._heuristic_compress(text, "httpx not installed")
+            raise CompressionError("缺少 httpx 依赖", "llm")
+        except CompressionError:
+            raise
         except Exception as e:
-            logger.warning(f"LLM compression failed: {e}. Falling back to heuristic.")
-            return self._heuristic_compress(text, str(e)[:100])
+            logger.warning("LLM compression failed: %s", e)
+            raise CompressionError(f"LLM 请求失败: {str(e)[:160]}", "llm", e) from e
 
     def _heuristic_compress(self, text: str, reason: str = "") -> dict:
         """Simple heuristic compression as fallback when LLM API is unavailable."""

@@ -1,25 +1,26 @@
-"""Stop the Token Calculator development server.
+#!/usr/bin/env python3
+"""Stop the Prompt Economics Workbench server.
 
 Finds the process listening on port 8000 (or the port saved in .server.pid)
 and terminates it cleanly.
 
 Usage:
-    python stop.py              # Kill server on port 8000
-    python stop.py --port 9000  # Kill server on custom port
+    ./stop.py              # Stop server on port 8000
+    ./stop.py --port 9000  # Stop server on custom port
 """
 
 import os
 import sys
 import signal
-import socket
+import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent
 DEFAULT_PORT = 8000
 
 
-def _find_process_on_port(port: int) -> int | None:
-    """Return PID of process listening on the given port, or None."""
+def _find_process_on_port(port: int) -> list[int]:
+    """Return PIDs listening on the given port."""
     if sys.platform == "win32":
         import subprocess
         try:
@@ -29,7 +30,7 @@ def _find_process_on_port(port: int) -> int | None:
             for line in output.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
                     parts = line.strip().split()
-                    return int(parts[-1])
+                    return [int(parts[-1])]
         except Exception:
             pass
     else:
@@ -38,10 +39,29 @@ def _find_process_on_port(port: int) -> int | None:
             output = subprocess.check_output(
                 ["lsof", "-ti", f":{port}"], text=True, timeout=5
             )
-            return int(output.strip())
+            return [int(value) for value in output.split() if value.isdigit()]
         except Exception:
             pass
-    return None
+    return []
+
+
+def _is_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+def _is_workbench_process(pid: int) -> bool:
+    """Do not let a stale pid file terminate an unrelated process."""
+    if sys.platform == "win32":
+        return True
+    try:
+        command = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+    except OSError:
+        return False
+    return "token-calculator" in command and "run.py" in command
 
 
 def _kill_pid(pid: int) -> bool:
@@ -53,6 +73,11 @@ def _kill_pid(pid: int) -> bool:
                            capture_output=True, timeout=10)
         else:
             os.kill(pid, signal.SIGTERM)
+            for _ in range(30):
+                if not _is_running(pid):
+                    return True
+                time.sleep(0.1)
+            os.kill(pid, signal.SIGKILL)
         return True
     except Exception:
         return False
@@ -77,7 +102,7 @@ def main():
         except ValueError:
             pass
 
-    if pid_from_file:
+    if pid_from_file and _is_workbench_process(pid_from_file):
         if _kill_pid(pid_from_file):
             pidfile.unlink(missing_ok=True)
             print(f"Stopped server (PID {pid_from_file}).")
@@ -86,8 +111,8 @@ def main():
             pidfile.unlink(missing_ok=True)
 
     # 2. Fall back to port scan
-    pid = _find_process_on_port(port)
-    if pid:
+    pids = _find_process_on_port(port)
+    for pid in pids:
         if _kill_pid(pid):
             pidfile.unlink(missing_ok=True)
             print(f"Stopped server on port {port} (PID {pid}).")

@@ -1,6 +1,7 @@
 """HuggingFace transformers-based tokenizer for Llama, Qwen, DeepSeek, GLM."""
 from __future__ import annotations
 import logging
+import os
 from token_calculator._tokenizer_base import TokenizerBase, InitializationError, TokenizationError
 
 logger = logging.getLogger(__name__)
@@ -14,9 +15,10 @@ class HfTokenizer(TokenizerBase):
     Tokenizer files are cached in ~/.cache/huggingface/hub/ by default.
     """
 
-    def __init__(self, group_id: str, repo_id: str):
+    def __init__(self, group_id: str, repo_id: str, revision: str | None = None):
         super().__init__(group_id=group_id, name=f"HF ({repo_id})", type="open")
         self._repo_id = repo_id
+        self._revision = revision
         self._tokenizer = None
 
     def _do_initialize(self) -> None:
@@ -25,10 +27,18 @@ class HfTokenizer(TokenizerBase):
             # Only enable trust_remote_code for models that genuinely need custom tokenizer code.
             # Default to False for safety — executing arbitrary code from model repos is a security risk.
             _trust_remote = self._repo_id and "THUDM/glm" in self._repo_id
+            local_only = os.getenv("TOKEN_CALC_ALLOW_DOWNLOAD") != "1"
+            source = self._repo_id
+            if local_only:
+                from huggingface_hub import snapshot_download
+                source = snapshot_download(self._repo_id, revision=self._revision,
+                                           local_files_only=True)
             self._tokenizer = AutoTokenizer.from_pretrained(
-                self._repo_id,
+                source,
                 use_fast=True,
                 trust_remote_code=_trust_remote,
+                revision=self._revision if source == self._repo_id else None,
+                local_files_only=local_only,
             )
             self._available = True
             logger.info(f"HfTokenizer {self._group_id} loaded from {self._repo_id}")

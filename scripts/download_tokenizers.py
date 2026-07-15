@@ -106,10 +106,14 @@ def download_sentencepiece_models():
 
 
 def report_tiktoken():
-    """tiktoken is built-in; no download needed."""
-    print("\n--- tiktoken (built-in) ---")
+    """Download tiktoken encoding tables into its local cache."""
+    print("\n--- tiktoken encoding tables ---")
+    os.environ["TOKEN_CALC_ALLOW_DOWNLOAD"] = "1"
+    import tiktoken
     for encoding in ["o200k_base", "cl100k_base"]:
-        print(f"  [{encoding}] Built-in, no download needed")
+        print(f"  [{encoding}] downloading/verifying ... ", end="", flush=True)
+        tokenizer = tiktoken.get_encoding(encoding)
+        print(f"READY (test: {len(tokenizer.encode('Hello world'))} tokens)")
 
 
 def verify_all():
@@ -119,7 +123,7 @@ def verify_all():
     from token_calculator._tokenizer_registry import preload_all
 
     print("\n--- Verifying all tokenizers ---")
-    results = preload_all()
+    results = preload_all(include_remote=True)
     for gid, available in results.items():
         status = "READY" if available else "UNAVAILABLE (will use fallback)"
         print(f"  {gid:20s} {status}")
@@ -144,7 +148,6 @@ if __name__ == "__main__":
         print("\n[DONE] All tokenizers ready.")
     else:
         print("\n[DONE] Some tokenizers unavailable. Run: pip install -e .[tokenizers] to install dependencies.")
-        print("        Missing tokenizers will use len*0.25 fallback estimation.")
-        print("        (Gemma is expected — deferred pending Google review.)")
+        print("        Missing tokenizers will use a labelled language-aware estimate.")
 
     sys.exit(0)

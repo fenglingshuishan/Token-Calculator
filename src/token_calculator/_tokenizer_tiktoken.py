@@ -1,6 +1,10 @@
 """Tiktoken-based tokenizer for OpenAI models (o200k_base, cl100k_base)."""
 from __future__ import annotations
+import hashlib
 import logging
+import os
+import tempfile
+from pathlib import Path
 from token_calculator._tokenizer_base import TokenizerBase, InitializationError, TokenizationError
 
 logger = logging.getLogger(__name__)
@@ -21,6 +25,16 @@ class TiktokenTokenizer(TokenizerBase):
     def _do_initialize(self) -> None:
         try:
             import tiktoken
+            urls = {
+                "o200k_base": "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken",
+                "cl100k_base": "https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken",
+            }
+            url = urls.get(self._encoding_name)
+            cache_dir = os.getenv("TIKTOKEN_CACHE_DIR") or os.getenv("DATA_GYM_CACHE_DIR") or os.path.join(tempfile.gettempdir(), "data-gym-cache")
+            cached = bool(url and (Path(cache_dir) / hashlib.sha1(url.encode()).hexdigest()).is_file())
+            if not cached and os.getenv("TOKEN_CALC_ALLOW_DOWNLOAD") != "1":
+                logger.info("Tiktoken data is not cached; returning an estimate without blocking")
+                return
             self._encoding = tiktoken.get_encoding(self._encoding_name)
             self._available = True
             logger.info(f"TiktokenTokenizer {self._group_id} initialized with {self._encoding_name}")

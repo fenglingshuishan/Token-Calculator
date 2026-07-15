@@ -1,0 +1,88 @@
+/* Fixed-viewport workbench. Navigation replaces whole-page scrolling. */
+html, body { height: 100%; overflow: hidden; }
+.topbar { height: 58px; position: relative; }
+.page {
+  height: calc(100dvh - 58px);
+  padding: 14px 24px 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.intro { height: 64px; min-height: 64px; align-items: center; margin: 0 0 12px; }
+.intro h1 { font-size: 24px; margin: 3px 0; }
+.intro p { font-size: 12px; }
+.steps li { padding: 8px 13px; }
+.workspace { flex: 1; min-height: 0; align-items: stretch; }
+.card { height: 100%; min-height: 0; }
+.editor-card { display: flex; flex-direction: column; padding: 16px; overflow: hidden; }
+.card-title h2, .section-heading h2, .result-head h2 { font-size: 15px; }
+.text-wrap { display: flex; flex-direction: column; flex: 1; min-height: 145px; margin-top: 10px; }
+.text-wrap textarea { height: auto; min-height: 0; flex: 1; resize: none; padding: 12px; }
+.section-heading { margin: 12px 0 9px; padding-top: 10px; }
+.form-grid { gap: 8px 12px; }
+.field { gap: 4px; }
+.field input, .field select { height: 35px; }
+.action-row { margin-top: 10px; }
+.primary { min-height: 39px; }
+.result-card { position: relative; top: auto; min-height: 0; padding: 16px; overflow: hidden; }
+.empty-state { height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 20px 45px; }
+.empty-state[hidden] { display: none; }
+.empty-illustration { width: 62px; height: 62px; margin-bottom: 10px; }
+.result-card #result { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.result-card #result[hidden] { display: none; }
+.result-head { min-height: 39px; }
+.result-tabs { display: flex; gap: 5px; margin: 8px 0; padding: 4px; background: #f1f3f7; border-radius: 10px; }
+.result-tabs button { flex: 1; border: 0; border-radius: 7px; padding: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
+.result-tabs button.active { background: #fff; color: var(--brand); box-shadow: 0 1px 4px rgba(31,42,68,.12); }
+.result-pane { display: none; flex: 1; min-height: 0; overflow: hidden; }
+.result-pane.active { display: flex; flex-direction: column; }
+.metrics { margin: 3px 0 8px; }
+.metrics div { padding: 10px 12px; }
+.metrics strong { font-size: 18px; }
+#output { height: auto; min-height: 100px; flex: 1; resize: none; }
+.economics { margin-top: 4px; }
+.changes { border: 0; margin: 0; padding: 5px; overflow: auto; }
+.changes h3 { font-size: 13px; }
+.review-callout { margin-top: 10px; }
+.notice { margin-top: 6px; padding: 7px 9px; font-size: 10px; }
+.result-card #warnings { max-height: 58px; overflow: auto; }
+.mobile-back { display: none; }
+.config-dialog, .wide-dialog { width: min(620px, calc(100% - 30px)); max-height: calc(100dvh - 40px); overflow: auto; }
+.dialog-save { margin: 18px 0 0 auto; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.tokenizer-list { display: grid; gap: 7px; margin-top: 14px; }
+.tokenizer-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; }
+.tokenizer-item span { font-size: 11px; color: var(--muted); }
+.tokenizer-item b { font-size: 12px; }
+.tokenizer-state { align-self: center; border-radius: 20px; padding: 5px 8px; font-size: 10px; }
+.tokenizer-state.ready { background: var(--good-bg); color: var(--good); }
+.tokenizer-state.missing { background: var(--warn-bg); color: var(--warn); }
+@media (max-height: 720px) {
+  .intro { height: 46px; min-height: 46px; }
+  .intro p, .steps small, .field small { display: none; }
+  .text-wrap { min-height: 110px; }
+  .empty-state ul { display: none; }
+}
+@media (max-width: 1050px) {
+  .page { padding: 10px 12px; }
+  .intro { height: 48px; min-height: 48px; }
+  .intro p, .steps { display: none; }
+  .workspace { display: block; }
+  .result-card { display: none; }
+  .show-result .editor-card { display: none; }
+  .show-result .result-card { display: block; }
+  .mobile-back { display: inline-flex; }
+  .result-head .trust { margin-left: auto; }
+}
+@media (max-width: 650px) {
+  .topbar { height: 52px; }
+  .page { height: calc(100dvh - 52px); padding: 8px; }
+  .intro { height: 42px; min-height: 42px; }
+  .intro h1 { font-size: 19px; }
+  .editor-card, .result-card { padding: 12px; }
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .field-wide { grid-column: 1 / -1; }
+  .action-row { flex-direction: row; align-items: center; }
+  .action-row p { display: none; }
+  .brand small { display: none; }
+}

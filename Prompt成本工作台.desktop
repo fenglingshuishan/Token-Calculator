@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Prompt 成本工作台
+Comment=安全压缩 Prompt 并核算真实 Token 成本
+Exec=/home/hcj/dev/token-calculator/start.sh
+Icon=/home/hcj/dev/token-calculator/assets/prompt-workbench.svg
+Terminal=false
+Categories=Development;Utility;
+StartupNotify=true

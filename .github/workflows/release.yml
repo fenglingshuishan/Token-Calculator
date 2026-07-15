@@ -1,0 +1,101 @@
+name: Release archived packages
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  python-distributions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/*
+
+  standalone:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+          - os: windows-latest
+            platform: windows-x64
+          - os: macos-14
+            platform: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install build dependencies
+        run: python -m pip install -e '.[build]'
+      - name: Embed core OpenAI tokenizer tables
+        run: python -c "import tiktoken; tiktoken.get_encoding('o200k_base'); tiktoken.get_encoding('cl100k_base')"
+      - name: Build executable
+        run: pyinstaller --clean --noconfirm token-calculator.spec
+      - name: Smoke-test executable
+        run: dist/token-calculator --version
+        if: runner.os != 'Windows'
+      - name: Smoke-test executable (Windows)
+        run: '& .\dist\token-calculator.exe --version'
+        if: runner.os == 'Windows'
+      - name: Package executable
+        run: python scripts/package_standalone.py --platform ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standalone-${{ matrix.platform }}
+          path: release-assets/*.zip
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/fenglingshuishan/token-calculator:${{ github.ref_name }}
+            ghcr.io/fenglingshuishan/token-calculator:archive
+
+  github-release:
+    needs: [python-distributions, standalone, container]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Generate SHA-256 checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Token Calculator 3.0.0 — Archived Release
+          body: |
+            Final archived reference release. See README.md / README.zh-CN.md
+            and docs/ARCHIVE.md before use. This project is not a cost optimizer
+            for managed agents such as Codex.
+          files: release-assets/*
+          generate_release_notes: true

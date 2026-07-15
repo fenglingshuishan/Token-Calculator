@@ -1,4 +1,4 @@
-"""Static file serving utilities for the Prompt Optimization Workstation."""
+"""Static file serving utilities for the archived Token Calculator."""
 from __future__ import annotations
 
 from fastapi import HTTPException
@@ -39,7 +39,7 @@ def setup_static_files(app, static_dir: str | None = None):
     @app.get("/{filename:path}")
     async def serve_static(filename: str):
         safe_path = (static_path / filename).resolve()
-        if not str(safe_path).startswith(str(static_path)):
+        if not safe_path.is_relative_to(static_path):
             raise HTTPException(status_code=404)
         if safe_path.is_file():
             ext = safe_path.suffix.lower()

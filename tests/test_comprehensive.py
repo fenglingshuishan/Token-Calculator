@@ -4,6 +4,7 @@ Comprehensive token-calculator test suite.
 Tests: token counting accuracy, rule compression effectiveness,
 whether compression actually reduces tokens across diverse cases.
 """
+__test__ = False
 import json
 import sys
 import time

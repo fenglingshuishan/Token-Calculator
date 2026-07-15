@@ -1,7 +1,8 @@
-"""Model pricing database and model group registry.
+"""Archived model-pricing snapshot and model-group registry.
 
 Price unit: USD per 1M tokens.
-Updated July 2026 -- only currently active models.
+Snapshot date: 2026-07-15. Prices are not updated after archival; verify them
+with each provider or supply custom values before making budget decisions.
 """
 from __future__ import annotations
 
@@ -60,44 +61,44 @@ _DEFAULT_GROUPS: list[dict] = [
     },
     {
         "group_id": "llama3", "type": "open", "library": "transformers",
-        "encoding": "llama3", "repo_id": "meta-llama/Llama-3.1-8B", "display_name": "Meta Llama 4",
+        "encoding": "llama3", "repo_id": "NousResearch/Meta-Llama-3-8B", "display_name": "Meta Llama 3 tokenizer",
         "provider": "Meta",
-        "models": ["Llama 4 Maverick", "Llama 4 Scout", "Llama 3.3 70B"],
+        "models": ["Llama 3 / 3.1"],
         "max_tokens": 128000, "vocab_size": 128256,
     },
     {
         "group_id": "qwen", "type": "open", "library": "transformers",
-        "encoding": "qwen", "repo_id": "Qwen/Qwen2.5-7B", "display_name": "Alibaba Qwen 3",
+        "encoding": "qwen", "repo_id": "Qwen/Qwen2.5-7B", "display_name": "Alibaba Qwen 2.5 tokenizer",
         "provider": "Alibaba",
-        "models": ["Qwen 3.7 Plus", "Qwen3-235B", "Qwen 3.6 27B"],
+        "models": ["Qwen 2.5"],
         "max_tokens": 131072, "vocab_size": 151936,
     },
     {
         "group_id": "deepseek_v4", "type": "open", "library": "transformers",
-        "encoding": "deepseek_v4", "repo_id": "deepseek-ai/DeepSeek-V3", "display_name": "DeepSeek V4",
+        "encoding": "deepseek_v4", "repo_id": "deepseek-ai/DeepSeek-V3", "display_name": "DeepSeek V3 tokenizer",
         "provider": "DeepSeek",
-        "models": ["DeepSeek V4 Flash", "DeepSeek V4 Pro"],
+        "models": ["DeepSeek V3"],
         "max_tokens": 1000000, "vocab_size": 129280,
     },
     {
         "group_id": "mistral", "type": "open", "library": "transformers",
-        "encoding": "mistral", "repo_id": "mistralai/Mistral-7B-v0.1", "display_name": "Mistral AI",
+        "encoding": "mistral", "repo_id": "mistralai/Mistral-7B-v0.1", "display_name": "Mistral 7B tokenizer",
         "provider": "Mistral AI",
-        "models": ["Mistral Large 3", "Mistral Small 4", "Mistral Medium 3.5"],
+        "models": ["Mistral 7B v0.1"],
         "max_tokens": 262000, "vocab_size": 131072,
     },
     {
         "group_id": "gemma", "type": "open", "library": "transformers",
-        "encoding": "gemma", "repo_id": "EuroEval/gemma-3-tokenizer", "display_name": "Google Gemma",
+        "encoding": "gemma", "repo_id": "EuroEval/gemma-3-tokenizer", "display_name": "Google Gemma 3 tokenizer",
         "provider": "Google",
-        "models": ["Gemma 4 12B", "Gemma 3 27B"],
+        "models": ["Gemma 3"],
         "max_tokens": 128000, "vocab_size": 256128,
     },
     {
         "group_id": "glm", "type": "open", "library": "transformers",
-        "encoding": "glm", "repo_id": "THUDM/glm-4-9b", "display_name": "Z.ai GLM-4.7",
+        "encoding": "glm", "repo_id": "THUDM/glm-4-9b", "display_name": "Z.ai GLM-4 tokenizer",
         "provider": "Zhipu AI",
-        "models": ["GLM-4.7", "GLM-4.5", "GLM-4.5-Air"],
+        "models": ["GLM-4 9B"],
         "max_tokens": 200000, "vocab_size": 65024,
     },
 ]
@@ -113,6 +114,12 @@ class PricingRegistry:
     def __init__(self, pricing=None, model_groups=None):
         self._pricing = pricing if pricing is not None else _DEFAULT_PRICING.copy()
         self._groups = model_groups if model_groups is not None else list(_DEFAULT_GROUPS)
+        self.metadata = {
+            "as_of": "2026-07-15",
+            "unit": "USD per 1M tokens",
+            "lifecycle": "archived_snapshot",
+            "notice": "归档价格快照，不再更新；重要预算请向供应商复核，也可在请求中传入自定义价格。",
+        }
         self._rebuild_index()
 
     def _rebuild_index(self):
@@ -120,7 +127,27 @@ class PricingRegistry:
         self._repr_model = {g["group_id"]: g["models"][0] for g in self._groups}
 
     def get_pricing(self, model_name: str) -> dict | None:
-        return self._pricing.get(model_name)
+        if not model_name:
+            return None
+        key = next((name for name in self._pricing if name.casefold() == model_name.casefold()), None)
+        if key is None:
+            return None
+        value = dict(self._pricing[key])
+        source, verified = self._source_for(key)
+        value.update({"source": source, "as_of": self.metadata["as_of"],
+                      "verified": verified})
+        return value
+
+    @staticmethod
+    def _source_for(model_name: str) -> tuple[str | None, bool]:
+        if model_name.startswith(("GPT-", "o4-", "text-embedding")):
+            return "https://developers.openai.com/api/docs/pricing", True
+        if model_name.startswith("DeepSeek"):
+            return "https://api-docs.deepseek.com/quick_start/pricing", True
+        return None, False
+
+    def get_all_pricing(self) -> dict[str, dict]:
+        return {name: self.get_pricing(name) for name in self._pricing}
 
     def get_groups(self) -> list[dict]:
         return list(self._groups)

@@ -1,0 +1,10 @@
+include README.md README.zh-CN.md LICENSE CHANGELOG.md SECURITY.md
+include Dockerfile docker-compose.yml .dockerignore package.json
+include run.py stop.py token-calculator.spec
+include start.sh stop.sh install_launcher.sh install_windows_launcher.ps1
+include PromptWorkbench.cmd StopPromptWorkbench.cmd
+include Prompt成本工作台.desktop
+recursive-include frontend *.html *.css *.js
+recursive-include scripts *.py
+recursive-include docs *.md
+recursive-include tests *.py *.mjs *.md

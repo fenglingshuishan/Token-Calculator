@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 .venv/
+.pytest_cache/
 
 # Runtime
 .server.pid
@@ -28,6 +29,7 @@ Thumbs.db
 # Project specific
 models/gemma/.cache/
 screenshots/e2e-*.png
+release-assets/
 
 # Environment
 .env
